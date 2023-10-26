@@ -1,3 +1,3 @@
 ﻿  MCAA-2.cpp
-D:\home\education\bachelor\5-semester\MCAA\MCAA-2\MCAA-2.cpp(401,14): warning C4244: 'argument': conversion from 'time_t' to 'unsigned int', possible loss of data
+D:\home\education\bachelor\5-semester\MCAA\MCAA-2\MCAA-2.cpp(433,14): warning C4244: 'argument': conversion from 'time_t' to 'unsigned int', possible loss of data
   MCAA-2.vcxproj -> D:\home\education\bachelor\5-semester\MCAA\MCAA-2\x64\Debug\MCAA-2.exe

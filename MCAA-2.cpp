@@ -313,36 +313,37 @@ void genU(double *m, int n)
          m[i * n + j] = (j < i) ? 0 : (i == j) ? rand() % 10 + 10 : rand() % 5 + 1;
 }
 
-double *slae(double *u, double *bIn, int n)
+double *slae(double *u, double *b, int n)
 {
-   double *b = allocateVector(n);
-   for (int i = 0; i < n; i++) b[i] = bIn[i];
+   double *x = allocateVector(n);
 
    for (int i = n - 1; i >= 0; i--)
    {
-      for (int j = n - 1; j > i; j--)
-         b[i] = b[i] - u[i * n + j] * b[j];
-      b[i] = b[i] / u[i * n + i];
+      double sum = 0;
+      for (int j = i + 1; j < n; j++)
+         sum += u[i * n + j] * x[j];
+      x[i] = (b[i] - sum) / u[i * n + i];
    }
 
-   return b;
+   return x;
 }
-double *slaeParallel(double *u, double *bIn, int n, int threads)
+
+double *slaeParallel(double *u, double *b, int n, int threads)
 {
-   double *b = allocateVector(n);
-   for (int i = 0; i < n; i++) b[i] = bIn[i];
+   double *x = allocateVector(n);
 
    for (int i = n - 1; i >= 0; i--)
    {
-#pragma omp parallel for num_threads(threads) reduction(-:sum)
-      for (int j = n - 1; j > i; j--)
-         b[i] = b[i] - u[i * n + j] * b[j];
-
-      b[i] = b[i] / u[i * n + i];
+      double sum = 0;
+#pragma omp parallel for num_threads(threads) reduction(+:sum)
+      for (int j = i + 1; j < n; j++)
+         sum += u[i * n + j] * x[j];
+      x[i] = (b[i] - sum) / u[i * n + i];
    }
 
-   return b;
+   return x;
 }
+
 double *matrixVectorMultiplication(double *m, double *v, int n)
 {
    double *vresult = allocateVector(n);
@@ -356,11 +357,47 @@ double *matrixVectorMultiplication(double *m, double *v, int n)
    return vresult;
 }
 
+struct task3Result
+{
+   chrono::duration<double, std::milli> duration;
+   double acceleration;
+   double normOriginal;
+   double normCalculated;
+};
+
+void writeToFileTask3Results(vector<task3Result> results, string path)
+{
+   fstream fs;
+   fs.open(path, fstream::out);
+
+   fs << "threads" << "\t" << "t,ms" << "\t" << "a" << "\t" << "norm original" << "\t" << "norm calculated" << endl;
+   int maxThreads = omp_get_max_threads();
+   for (int i = 0; i < results.size(); i++)
+   {
+      fs << i + 1 << "\t";
+      fs << results[i].duration.count() << "\t";
+      fs << results[i].acceleration << "\t";
+      fs << results[i].normOriginal << "\t";
+      fs << results[i].normCalculated;
+      fs << endl;
+   }
+
+   fs.close();
+}
+
+double vectorNorm(double *m, int n)
+{
+   double sum = 0;
+   for (int i = 0; i < n; i++)
+      sum += m[i] * m[i];
+   return sqrt(sum);
+}
+
 void task3()
 {
    int maxThreads = omp_get_max_threads();
-   int n = 45;
-   vector<task2Result> results;
+   int n = 2500;
+   vector<task3Result> results;
 
    for (int threads = 1; threads <= maxThreads; threads++)
    {
@@ -370,31 +407,31 @@ void task3()
       fillRandom(x, n);
       double *b = matrixVectorMultiplication(u, x, n);
 
-
       auto start_time = chrono::high_resolution_clock::now();
-      double *product = slaeParallel(u, b, n, maxThreads);
-      writeToFileVector(product, n, "o1.txt");
-      writeToFileVector(x, n, "o2.txt");
+      double *xCalculated = threads == 1 ? slae(u, b, n) : slaeParallel(u, b, n, maxThreads);
       auto end_time = chrono::high_resolution_clock::now();
       chrono::duration<double, std::milli> duration = end_time - start_time;
 
-
-      task2Result result{};
+      task3Result result{};
       result.acceleration = threads == 1 ? 0 : results[0].duration / duration;
       result.duration = duration;
-      //result.norm = matrixNorm(product, n);
+      result.normOriginal = vectorNorm(x, n);
+      result.normCalculated = vectorNorm(xCalculated, n);
 
       results.push_back(result);
       deleteObject(u);
-      //deleteObject(m2);
-      //deleteObject(product);
+      deleteObject(x);
+      deleteObject(b);
+      deleteObject(xCalculated);
    }
 
-   writeToFileTask2Results(results, "resultsTask2.txt");
+   writeToFileTask3Results(results, "resultsTask3.txt");
 }
 
 int main()
 {
    srand(time(0));
+   //   task1();
+   //   task2();
    task3();
 }
